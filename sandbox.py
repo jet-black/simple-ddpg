@@ -48,6 +48,8 @@ class QuickAgent:
         self.correct_bounds()
 
     def shoot(self, world):
+        if self.unit.killed:
+            return
         closest, closest_dist = self.find_closest(world)
         if self.unit.range >= closest_dist and self.unit.cd == 0:
             h = closest.unit.health
