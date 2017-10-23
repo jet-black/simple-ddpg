@@ -1,8 +1,5 @@
 import numpy as np
 import tensorflow as tf
-import gym
-import random
-import math
 import os
 import pickle
 

@@ -266,8 +266,8 @@ class World:
             self.cum_loss = self.actor.last_loss
         else:
             self.cum_loss = self.cum_loss * self.loss_decay + self.actor.last_loss * (1 - self.loss_decay)
-        if self.step % 100 == 0:
-            print("Loss: %s. At step: %s" % (self.cum_loss, self.step))
+            if self.step % 100 == 0:
+                print("Loss: %s. At step: %s" % (self.cum_loss, self.step))
 
     def reset(self):
         u1_melee_1 = QuickAgent(self.create_melee_unit(100, 300, -1))
@@ -310,3 +310,4 @@ my_world = World(runner)
 my_world.reset()
 app = App(True, my_world)
 app.start()
+print("Warming up for 25000 ticks")
