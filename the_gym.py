@@ -3,8 +3,8 @@ import tensorflow as tf
 import os
 import pickle
 
-target_update_step = 0.0001
-MIN_REPLAY_SIZE = 5000
+target_update_step = 0.001
+MIN_REPLAY_SIZE = 1000
 
 
 def dense(shape, name):
@@ -101,7 +101,7 @@ class Actor:
         l3 = tf.nn.relu(tf.matmul(l2, d3_w) + d3_b)
         l3 = tf.layers.batch_normalization(l3)
         d4_w, d4_b = dense([512, self.action_size], "d4")
-        actor_out = tf.clip_by_norm(tf.nn.tanh(tf.matmul(l3, d4_w) + d4_b), 1)
+        actor_out = tf.nn.tanh(tf.matmul(l3, d4_w) + d4_b)
         return actor_out
 
     def init_update_target(self):
@@ -158,9 +158,9 @@ class Critic:
         critic_out = tf.identity(tf.matmul(l3, d4_w) + d4_b)
 
         #d1_w, d1_b = dense([self.state_size, 512], "d1")
-        #d2_w, d2_b = dense([512, 256], "d2")
-        #d2_w_action, d2_b = dense([self.action_size, 256], "d2_action")
-        #d3_w, d3_b = dense([256, 1], "d3")
+        #d2_w, d2_b = dense([512, 512], "d2")
+        #d2_w_action, d2_b = dense([self.action_size, 512], "d2_action")
+        #d3_w, d3_b = dense([512, 1], "d3")
         #l1 = tf.nn.relu(tf.matmul(self.x_input, d1_w) + d1_b)
         #l1 = tf.layers.batch_normalization(l1)
         #l2 = tf.nn.relu(tf.matmul(l1, d2_w) + tf.matmul(actor_out, d2_w_action) + d2_b)
@@ -191,11 +191,6 @@ class Runner:
         self.discount = discount
         self.last_loss = 0
         self.save_path = save_path
-        self.saver = tf.train.Saver()
-        if os.path.exists(save_path + ".index"):
-            print("Restoring model")
-            self.saver.restore(session, save_path)
-            self.buffer = pickle.load(open(self.save_path + "_replay_buffer.pickle", "rb"))
         self.step = 0
 
     def optimize(self, s_batch, a_batch, y_batch):
@@ -241,11 +236,6 @@ class Runner:
         batch_item = [state, action, reward, state1, terminal]
         self.buffer.add(batch_item)
         self.last_loss = 0
-        if self.step % 20000 == 0:
-            print("Saving model...")
-            self.saver.save(self.session, self.save_path)
-            pickle.dump(self.buffer, open(self.save_path + "_replay_buffer.pickle", "wb"))
-            print("Model saved!")
         self.update_targets()
         self.step += 1
 
@@ -268,7 +258,7 @@ class Runner:
         return self.optimize(s_batch, a_batch, y)
 
 
-def create_runner(save_path, state_dim, action_dim, discount=0.999, buffer_size=100000, batch_size=128):
+def create_runner(save_path, state_dim, action_dim, discount=0.99, buffer_size=100000, batch_size=32):
     g = tf.Graph()
     with g.as_default():
         actor_x_input = tf.placeholder(shape=[None, state_dim], dtype=tf.float32)
@@ -281,3 +271,42 @@ def create_runner(save_path, state_dim, action_dim, discount=0.999, buffer_size=
     buf = ReplayBuffer(buffer_size, state_dim, action_dim)
     runner = Runner(sess, actor, critic, buf, batch_size, discount, save_path)
     return runner
+
+
+runner = create_runner("asdasd", 3, 1)
+
+noise = OUNoise(1)
+import gym
+
+env = gym.make('Pendulum-v0')
+
+s = env.reset()
+r = 0
+cum_rev = 0
+for j in range(10000000):
+    s = env.reset()
+    s = s.reshape((3,))
+    for i in range(600):
+        src_a = runner.get_action(s)
+        print(src_a)
+        aa = (src_a + noise.noise() * 0.5)
+        if abs(aa[0]) > 1:
+            aa = aa / np.linalg.norm(aa)
+        action = aa * 2.0
+        # action = aa
+        actual_action = action
+        s1, r, terminal, _ = env.step(actual_action)
+        s1 = s1.reshape((3,))
+        runner.add(s, action / 2.0, r, s1, terminal)
+        s = s1
+        cum_rev += r
+        runner.make_train()
+        env.render()
+        if terminal:
+            # print("done!")
+            break
+    if j % 5 == 0:
+        print(cum_rev)
+        print(actual_action)
+    noise.reset()
+    cum_rev = 0

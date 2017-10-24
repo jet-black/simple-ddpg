@@ -1,6 +1,8 @@
-import tkinter as tk
-import numpy as np
 import os
+import tkinter as tk
+
+import numpy as np
+
 from ddpg import ddpg_learner
 
 WIDTH = 800
@@ -143,6 +145,8 @@ class DDPGAgent(QuickAgent):
 
     def make_coord_move(self, closest, closest_dist, world):
         suggested_action = self.actor.get_action(self.last_state)
+        if world.step % 300 == 0:
+            print(suggested_action)
         a = suggested_action + self.noise.noise()  # * 0.5
         vx = a[0]
         vy = a[1]
@@ -168,9 +172,9 @@ class DDPGAgent(QuickAgent):
         if world.finished:
             if self.unit.team in world.teams:
                 reward = 100
-                print("WON!")
             elif len(world.teams) == 1:
                 reward = -100
+        #reward /= 100
         self.actor.add(self.last_state, self.picked_action, reward, cur_state, world.finished)
 
     def compute_health_diff(self, world):
@@ -187,12 +191,12 @@ class DDPGAgent(QuickAgent):
         for agent in world.agents:
             if self.unit.id != agent.unit.id:
                 cur += self.get_unit_state(agent.unit)
-        return np.array(cur) / 400.0
+        return np.array(cur) / 100.0
 
     @staticmethod
     def get_unit_state(unit):
-        s = [unit.x,
-             unit.y,
+        s = [unit.x - WIDTH / 2,
+             unit.y - HEIGHT / 2,
              unit.radius,
              unit.range,
              unit.cd_time,
@@ -241,6 +245,7 @@ class World:
         self.cum_loss = 0
         self.loss_decay = 0.999
         self.teams = set()
+        self.list_wins = []
 
     def tick(self):
         self.step += 1
@@ -258,6 +263,16 @@ class World:
                 a.unit.killed = True
         if len(self.teams) < 2:
             self.finished = True
+            if len(self.teams) == 1:
+                t = next(iter(self.teams))
+                self.list_wins.append(t)
+                if len(self.list_wins) > 100:
+                    self.list_wins = self.list_wins[1:]
+                cnt_wins = 0
+                for x in self.list_wins:
+                    if x == 1:
+                        cnt_wins += 1
+                print("Win rate: %s" % (cnt_wins / len(self.list_wins)))
         for a in self.agents:
             a.after_move(self)
         if self.finished:
@@ -307,9 +322,11 @@ if not os.path.exists("model_data"):
     os.mkdir("model_data")
 
 runner = ddpg_learner.create_runner("model_data/model", UNIT_STATE_DIM * 8, ACTION_DIM,
-                                    batch_size=128, buffer_size=2000000)
+                                    batch_size=64, buffer_size=2000000)
+
+print("Warming up for 25000 ticks")
+
 my_world = World(runner)
 my_world.reset()
 app = App(True, my_world)
 app.start()
-print("Warming up for 25000 ticks")
