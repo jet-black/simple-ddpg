@@ -62,6 +62,7 @@ class ReplayBuffer:
             self.items = []
         if self.frozen_items is not None and len(self.frozen_items) > self.max_size:
             self.frozen_items = self.frozen_items[50000:]
+            self.frozen_arr_idx = np.arange(0, self.frozen_items.shape[0]).astype(np.int32)
 
     def get_batch(self, batch_size):
         idx = np.random.choice(self.frozen_arr_idx, batch_size, False)
@@ -241,7 +242,7 @@ class Runner:
         batch_item = [state, action, reward, state1, terminal]
         self.buffer.add(batch_item)
         self.last_loss = 0
-        if self.step % 20000 == 0:
+        if self.step % 100000 == 0:
             print("Saving model...")
             self.saver.save(self.session, self.save_path)
             pickle.dump(self.buffer, open(self.save_path + "_replay_buffer.pickle", "wb"))

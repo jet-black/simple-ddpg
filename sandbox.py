@@ -1,6 +1,6 @@
 import os
 import tkinter as tk
-
+import random
 import numpy as np
 
 from ddpg import ddpg_learner
@@ -287,18 +287,33 @@ class World:
                 print("Loss: %s. At step: %s" % (self.cum_loss, self.step))
 
     def reset(self):
-        u1_melee_1 = QuickAgent(self.create_melee_unit(100, 300, -1))
-        u1_melee_2 = QuickAgent(self.create_melee_unit(100, 400, -1))
-        u1_melee_3 = QuickAgent(self.create_melee_unit(100, 500, -1))
-        u1_melee_4 = QuickAgent(self.create_melee_unit(100, 600, -1))
+        self.agents = []
+        for i in range(5):
+            while len(self.agents) < 12:
+                cur_x = random.randrange(50, WIDTH // 2 - 150)
+                cur_y = random.randrange(50, HEIGHT - 50)
+                quick_melee = QuickAgent(self.create_melee_unit(cur_x, cur_y, -1))
+                agent_melee = DDPGAgent(self.create_melee_unit(WIDTH - cur_x, HEIGHT - cur_y, 1), self.actor)
+                suit_1 = self.is_suitable(quick_melee)
+                suit_2 = self.is_suitable(agent_melee)
+                if suit_1 and suit_2:
+                    self.agents.append(quick_melee)
+                    self.agents.append(agent_melee)
 
-        u2_melee_1 = DDPGAgent(self.create_melee_unit(WIDTH - 100, 300, 1), self.actor)
-        u2_melee_2 = DDPGAgent(self.create_melee_unit(WIDTH - 100, 400, 1), self.actor)
-        u2_melee_3 = DDPGAgent(self.create_melee_unit(WIDTH - 100, 500, 1), self.actor)
-        u2_melee_4 = DDPGAgent(self.create_melee_unit(WIDTH - 100, 600, 1), self.actor)
-
-        self.agents = [u1_melee_1, u1_melee_2, u1_melee_3, u1_melee_4,
-                       u2_melee_1, u2_melee_2, u2_melee_3, u2_melee_4]
+    def is_suitable(self, candidate):
+        closest = None
+        closest_dist = 1000000
+        for agent in self.agents:
+            other = agent.unit
+            dist = candidate.unit.distance(other)
+            if dist < closest_dist:
+                closest_dist = dist
+                closest = agent
+        if closest is None:
+            return True
+        if closest_dist <= candidate.unit.radius + closest.unit.radius:
+            return False
+        return True
 
     def create_melee_unit(self, x, y, team):
         if team > 0:
@@ -321,12 +336,12 @@ np.set_printoptions(suppress=True)
 if not os.path.exists("model_data"):
     os.mkdir("model_data")
 
-runner = ddpg_learner.create_runner("model_data/model", UNIT_STATE_DIM * 8, ACTION_DIM,
-                                    batch_size=64, buffer_size=2000000)
+runner = ddpg_learner.create_runner("model_data/model", UNIT_STATE_DIM * 12, ACTION_DIM,
+                                    batch_size=64, buffer_size=1400000)
 
 print("Warming up for 25000 ticks")
 
 my_world = World(runner)
 my_world.reset()
-app = App(True, my_world)
+app = App(False, my_world)
 app.start()
