@@ -3,8 +3,9 @@ import tensorflow as tf
 import os
 import pickle
 
-target_update_step = 0.0001
+target_update_step = 0.001
 MIN_REPLAY_SIZE = 5000
+REG_STEP = 0.00001
 
 
 def dense(shape, name):
@@ -115,8 +116,8 @@ class Actor:
         grads = tf.gradients(self.actor_net, self.actor_trainable, -self.gradients_placeholder)
         clipped_grads = []
         for i, g in enumerate(grads):
-            clipped = tf.clip_by_value(g, -1.0, 1.0)
-            regularized = clipped + tf.reduce_sum(self.actor_trainable[i]) * 0.01
+            clipped = tf.clip_by_value(g, -10.0, 10.0)
+            regularized = clipped + tf.reduce_sum(self.actor_trainable[i]) * REG_STEP
             clipped_grads.append(regularized)
         self.optimizer = tf.train.AdamOptimizer(self.learning_rate).apply_gradients(
             zip(clipped_grads, self.actor_trainable))
@@ -178,7 +179,7 @@ class Critic:
     def init_optimizer(self):
         loss = tf.reduce_mean(tf.squared_difference(self.critic_net, self.labels))
         for x in self.critic_trainable:
-            loss += tf.nn.l2_loss(x) * 0.01
+            loss += tf.nn.l2_loss(x) * REG_STEP
         return loss, tf.train.AdamOptimizer(self.learning_rate).minimize(loss, var_list=self.critic_trainable)
 
 
